@@ -12,7 +12,7 @@ interface MyPluginSettings {
 const DEFAULT_SETTINGS: MyPluginSettings = {
 	tag: '#publish',
 	noteFolder: '/Users/datvithanh/Project/datvt/content',
-	attachmentFolder: '/Users/datvithanh/Project/datvt/content/notes/images'
+	attachmentFolder: '/Users/datvithanh/Project/datvt/content/attachments'
 }
 
 export default class NotesExtractionPlugin extends Plugin {
@@ -27,10 +27,15 @@ export default class NotesExtractionPlugin extends Plugin {
 			const notes: TFile[] = this.app.vault.getMarkdownFiles();
 			for (const noteFile of notes) {
 				const fileCachedData = this.app.metadataCache.getFileCache(noteFile) || {};
-				const tags = getAllTags(fileCachedData) || [];
-				
-				if (tags.some((tag) => tag === '#publish') && !noteFile.path.startsWith("_meta")) {
-					// copy this file to an os path
+				if (noteFile.path.startsWith('publish/')) {
+					// read the file, remove publish tag, and write back to the new path
+					(async () => {
+						const content = await this.app.vault.read(noteFile);
+						const newContent = content.replace('#publish\n', '');
+						await this.app.vault.modify(noteFile, newContent);
+					}) ()
+
+					// copy the file to a different os path
 					copyFile(join(basePath, noteFile.path), join(this.settings.noteFolder, noteFile.name), (err) => {
 						if (err) throw err;
 						console.log('file copied to destination.txt');
@@ -47,7 +52,7 @@ export default class NotesExtractionPlugin extends Plugin {
 				}
 			}
 	
-			new Notice('This is a notice!');
+			new Notice('Move files done!');
 		});
 		// Perform additional things with the ribbon
 		ribbonIconEl.addClass('my-plugin-ribbon-class');
