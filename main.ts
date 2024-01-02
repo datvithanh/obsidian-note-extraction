@@ -1,5 +1,5 @@
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, getAllTags, Setting, TFile } from 'obsidian';
-import { copyFile, existsSync } from 'fs';
+import { copyFile, existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 // Remember to rename these classes and interfaces!
 
@@ -14,6 +14,13 @@ const DEFAULT_SETTINGS: MyPluginSettings = {
 	noteFolder: '/Users/datvithanh/Project/datvt/content',
 	attachmentFolder: '/Users/datvithanh/Project/datvt/content/attachments'
 }
+
+function compareFiles(file1Path: string, file2Path: string) {
+	const file1Content = readFileSync(file1Path, 'utf-8');
+	const file2Content = readFileSync(file2Path, 'utf-8');
+  
+	return file1Content === file2Content;
+  }
 
 export default class NotesExtractionPlugin extends Plugin {
 	settings: MyPluginSettings;
@@ -33,9 +40,10 @@ export default class NotesExtractionPlugin extends Plugin {
 					const newFilePath = join(this.settings.noteFolder, noteFile.name);
 
 					if (existsSync(newFilePath)) {
-						// check content of two files, if similar, continue to next file
-						// const content = await this.app.vault.read(noteFile);
-						// const newContent = await this.app.vault.read(newFilePath);
+						if (compareFiles(filePath, newFilePath)) {
+							console.log (noteFile.name, 'is the same, skip');
+							continue;
+						}
 					}
 
 					// read the file, remove publish tag, and write back to the new path
@@ -48,7 +56,7 @@ export default class NotesExtractionPlugin extends Plugin {
 					// copy the file to a different os path
 					copyFile(filePath, newFilePath, (err) => {
 						if (err) throw err;
-						console.log('file copied to destination.txt');
+						console.log(noteFile.name, 'copied to destination.txt');
 					});
 					// copy all of the attachment to a different os path
 					const embeds = fileCachedData.embeds ?? [];
