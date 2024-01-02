@@ -1,5 +1,5 @@
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, getAllTags, Setting, TFile } from 'obsidian';
-import { copyFile } from 'fs';
+import { copyFile, existsSync } from 'fs';
 import { join } from 'path';
 // Remember to rename these classes and interfaces!
 
@@ -27,7 +27,17 @@ export default class NotesExtractionPlugin extends Plugin {
 			const notes: TFile[] = this.app.vault.getMarkdownFiles();
 			for (const noteFile of notes) {
 				const fileCachedData = this.app.metadataCache.getFileCache(noteFile) || {};
+
 				if (noteFile.path.startsWith('publish/')) {
+					const filePath = join(basePath, noteFile.path);
+					const newFilePath = join(this.settings.noteFolder, noteFile.name);
+
+					if (existsSync(newFilePath)) {
+						// check content of two files, if similar, continue to next file
+						// const content = await this.app.vault.read(noteFile);
+						// const newContent = await this.app.vault.read(newFilePath);
+					}
+
 					// read the file, remove publish tag, and write back to the new path
 					(async () => {
 						const content = await this.app.vault.read(noteFile);
@@ -36,7 +46,7 @@ export default class NotesExtractionPlugin extends Plugin {
 					}) ()
 
 					// copy the file to a different os path
-					copyFile(join(basePath, noteFile.path), join(this.settings.noteFolder, noteFile.name), (err) => {
+					copyFile(filePath, newFilePath, (err) => {
 						if (err) throw err;
 						console.log('file copied to destination.txt');
 					});
