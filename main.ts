@@ -1,6 +1,7 @@
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, getAllTags, Setting, TFile } from 'obsidian';
 import { copyFile, existsSync, readFileSync } from 'fs';
 import { join } from 'path';
+import { readdirSync, unlinkSync } from 'fs';
 // Remember to rename these classes and interfaces!
 
 interface MyPluginSettings {
@@ -20,7 +21,17 @@ function compareFiles(file1Path: string, file2Path: string) {
 	const file2Content = readFileSync(file2Path, 'utf-8');
   
 	return file1Content === file2Content;
-  }
+}
+
+function extractTitle(s: string){
+	var titleRegex = /title:\s*(.*?)\n/;
+	var match = titleRegex.exec(s);
+	if (match && match.length > 1) {
+		return match[1]
+	}
+
+	return ""
+}
 
 export default class NotesExtractionPlugin extends Plugin {
 	settings: MyPluginSettings;
@@ -36,6 +47,17 @@ export default class NotesExtractionPlugin extends Plugin {
 				const fileCachedData = this.app.metadataCache.getFileCache(noteFile) || {};
 
 				if (noteFile.path.startsWith('publish/')) {
+					// read the file, remove publish tag, and write back to the new path
+					(async () => {
+						const content = await this.app.vault.read(noteFile);
+						var newContent = content.replace('#publish\n', '');
+						var title = extractTitle(newContent)
+						if (title != noteFile.name && noteFile.name != "index.md") {
+							newContent = newContent.replace(/title:\s*(.*?)\n/, `title: ${noteFile.name.replace(".md", "")}\n`)
+						}
+						await this.app.vault.modify(noteFile, newContent);
+					}) ()
+
 					const filePath = join(basePath, noteFile.path);
 					const newFilePath = join(this.settings.noteFolder, noteFile.name);
 
@@ -46,18 +68,12 @@ export default class NotesExtractionPlugin extends Plugin {
 						}
 					}
 
-					// read the file, remove publish tag, and write back to the new path
-					(async () => {
-						const content = await this.app.vault.read(noteFile);
-						const newContent = content.replace('#publish\n', '');
-						await this.app.vault.modify(noteFile, newContent);
-					}) ()
-
 					// copy the file to a different os path
 					copyFile(filePath, newFilePath, (err) => {
 						if (err) throw err;
 						console.log(noteFile.name, 'copied to destination.txt');
 					});
+					
 					// copy all of the attachment to a different os path
 					const embeds = fileCachedData.embeds ?? [];
 					console.log(basePath);
@@ -71,7 +87,22 @@ export default class NotesExtractionPlugin extends Plugin {
 			}
 	
 			new Notice('Move files done!');
+
+			// find refundant files in publish and remove them
+
+			const noteFiles = notes.filter(noteFile => noteFile.path.startsWith('publish/'))
+			const noteFilesNames = noteFiles.map(noteFile => noteFile.path.replace("publish/", ""));
+			const publishFiles = readdirSync(this.settings.noteFolder);
+
+			const filesToCleanUp = publishFiles.filter(file => !noteFilesNames.includes(file) && file.endsWith(".md"));
+			console.log("Cleaning up files:", filesToCleanUp)
+			filesToCleanUp.forEach(file => {
+				const filePath = join(this.settings.noteFolder, file);
+				unlinkSync(filePath);
+				console.log(`${file} deleted from publishFolder`);
+			});
 		});
+
 		// Perform additional things with the ribbon
 		ribbonIconEl.addClass('my-plugin-ribbon-class');
 
